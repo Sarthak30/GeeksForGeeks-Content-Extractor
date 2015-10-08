@@ -1,8 +1,9 @@
 from bs4 import BeautifulSoup
 from urllib2 import urlopen
-from xhtml2pdf import pisa
 import os, httplib2, re
+import pdfkit
 
+i = 0
 
 class G4GExtractor:
     __BASE_WEB_URL = 'http://www.geeksforgeeks.org/category/'
@@ -10,12 +11,7 @@ class G4GExtractor:
     __CURR_DIR_PATH = os.path.dirname(os.path.realpath(__file__)) + '/'
 
     def __init__(self, path=''):
-        """
-        Main class constructor and contains methods for crawler and content extraction
-
-        :param path: path where we need to save the files
-        :raise Exception: When the path is invalid or write permission error.
-        """
+       
         if len(path.strip()) == 0:
             self.__FILE_SAVE_PATH = self.__CURR_DIR_PATH
         elif os.path.exists(path) and os.access(path, os.W_OK):
@@ -26,12 +22,7 @@ class G4GExtractor:
                             "permissions and try again later. Thank You")
 
     def set_filesave_path(self, path):
-        """
-        Sets the file save path where contents will be downloaded
-
-        :param path: path to set
-        :raise Exception: When the path is invalid or write permission error.
-        """
+        
         if os.path.exists(path) and os.access(path, os.W_OK):
             self.__FILE_SAVE_PATH = path
         else:
@@ -40,47 +31,21 @@ class G4GExtractor:
                             "permissions and try again later. Thank You")
 
     def set_baseweburl_path(self, url):
-        """
-        Sets the base url path path which enables you to choose category
-        download or download based on tags
-
-        :param path: path to set
-        :raise Exception: When the path is invalid or write permission error.
-        """
+        
         self.__BASE_WEB_URL = url
 
     def __valid_webpage(self,urllink):
 
-        """
-        Checks is a link is valid or not. returns true is Status is 200
-        and false if status is 404.
-
-        :param urllink: Link of page whose validity is to be checked
-        :return: True if connection status is 200 else False when connection
-            status is 404
-        """
         h = httplib2.Http()
         resp = h.request(urllink, 'HEAD')
         return int(resp[0]['status']) == 200
 
     def __remove_non_ascii(self,text):
-        """
-        Remove unicode or ascii chars from html source
-
-        :param text: Html source
-        :return: string after cleaning text
-        """
+        
         return ''.join([i if ord(i) < 128 else '' for i in text])
 
     def extract_content_and_save(self, cat_list, pdf=False):
-        """
-        Returns a list of all the links whose content is to be crawled.
-        This method takes care of the pagination and gets all links for
-        tags or categories
-
-        :param cat_list: List of the categories whose links are to be crawled
-        :return: List of all gathered links
-        """
+       
 
         #List to store all the links.
         totallinks = []
@@ -129,7 +94,7 @@ class G4GExtractor:
                         soup = BeautifulSoup(pagedata)
 
                         #Find all the title links in the page
-                        content_links = soup.findAll("h2", class_="post-title")
+                        content_links = soup.findAll("h2", class_="entry-title")
 
                         #Iterate every page and save the content links in a list
                         for link in content_links:
@@ -138,28 +103,23 @@ class G4GExtractor:
                                     '"').split(
                                     '"')[0]
                             listofLinks.append(mainLink)
-                            self.save_pages(listofLinks, newpath, pdf)
+                        self.save_pages(listofLinks, newpath)
                         totallinks.append(listofLinks)
                     else:
                         print url + ' Returned Status 404'
             else:
                 print url + ' Returned Status 404'
 
+		print "Returning from save and extract data"
         return totallinks
 
-    def save_pages(self, listoflinks, newpath, pdf=False):
+    def save_pages(self, listoflinks, newpath, pdf=True):
+		
 
-        """
-        Function to save the pages either as pdf or html files
-
-        :param listoflinks: List of all the links to be saved
-        :param newpath: Path to directory where files will be saved
-        :param pdf: If True then pdf files are generated else files are saved as .html
-        """
         for link in listoflinks:
             pagedata = urlopen(link).read()
             soup = BeautifulSoup(pagedata)
-            title = soup.find('h2', {"class": "post-title"})
+            title = soup.find('h1', {"class": "entry-title"})
 
             #Create File name to be saved as
             filename = re.sub('[^a-zA-Z0-9\n\.]', '_', title.text)
@@ -171,48 +131,19 @@ class G4GExtractor:
             try:
                 if os.path.exists(newpath):
                     filePath = newpath + "/" + filename
-                    if pdf:
-                        self.convertHtmlToPdf(pagedata, filePath + '.pdf')
-                    else:
-                        with open(filePath + '.html', "wb") as f:
-                            f.write(self.__remove_non_ascii(pagedata))
+                    print filename+" saved"
+                    pdfkit.from_url(link,(filePath+".pdf"))
 
             except OSError as e:
                 print(e.message)
 
-    
-    def convertHtmlToPdf(self,sourceHtml, outputFilename):
-        """
-         Open output file for writing (truncated binary) and
-         converts HTML code into pdf file format
-
-        :param sourceHtml: The html source to be converted to pdf
-        :param outputFilename: Name of the output file as pdf
-        :return: Error if pdf not generated successfully
-        """
-        resultFile = open(outputFilename, "w+b")
-
-        # convert HTML to PDF
-        pisaStatus = pisa.CreatePDF(sourceHtml, dest=resultFile)
-
-        # close output file
-        resultFile.close()
-
-        # return True on success and False on errors
-        return pisaStatus.err
-
-'''
 def demo():
     """
     A demo run if this app.
-
     """
     demo_cat_list = ['bit-magic']
-    path = '/root/PycharmProjects/GeekForGeeks-Spider/'
-    demo = G4GExtractor(path)
-    totallinks = len(demo.extract_content_and_save(demo_cat_list, True))
+    demo = G4GExtractor()
+    totallinks = len(demo.extract_content_and_save(demo_cat_list,True))
     print("Number of links crawled and saved is %d" % totallinks)
-
 if __name__ == '__main__':
     demo()
-'''
